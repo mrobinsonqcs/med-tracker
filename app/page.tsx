@@ -1,101 +1,211 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+import { useEffect, useState, useCallback } from 'react'
+import { Medication, DailyDose, TimeOfDay } from '@/lib/database.types'
+
+const TIME_ORDER: TimeOfDay[] = ['morning', 'noon', 'evening', 'night']
+const TIME_LABELS: Record<TimeOfDay, string> = {
+  morning: 'Morning',
+  noon: 'Noon',
+  evening: 'Evening',
+  night: 'Night',
+}
+const TIME_ICONS: Record<TimeOfDay, string> = {
+  morning: '🌅',
+  noon: '☀️',
+  evening: '🌇',
+  night: '🌙',
+}
+
+type DoseEntry = {
+  medication: Medication
+  timeOfDay: TimeOfDay
+  dose: DailyDose | null
+}
+
+function todayStr() {
+  return new Date().toISOString().split('T')[0]
+}
+
+export default function TodayPage() {
+  const [medications, setMedications] = useState<Medication[]>([])
+  const [doses, setDoses] = useState<DailyDose[]>([])
+  const [loading, setLoading] = useState(true)
+  const [toggling, setToggling] = useState<string | null>(null)
+
+  const today = todayStr()
+
+  const fetchData = useCallback(async () => {
+    const [medsRes, dosesRes] = await Promise.all([
+      fetch('/api/medications'),
+      fetch(`/api/daily-doses?date=${today}`),
+    ])
+    const [meds, dosesData] = await Promise.all([medsRes.json(), dosesRes.json()])
+    setMedications(Array.isArray(meds) ? meds : [])
+    setDoses(Array.isArray(dosesData) ? dosesData : [])
+    setLoading(false)
+  }, [today])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  const getEntries = (): Record<TimeOfDay, DoseEntry[]> => {
+    const result: Record<TimeOfDay, DoseEntry[]> = {
+      morning: [],
+      noon: [],
+      evening: [],
+      night: [],
+    }
+    for (const med of medications) {
+      for (const time of med.times as TimeOfDay[]) {
+        const dose = doses.find(
+          (d) => d.medication_id === med.id && d.time_of_day === time
+        ) ?? null
+        result[time].push({ medication: med, timeOfDay: time, dose })
+      }
+    }
+    return result
+  }
+
+  const toggleDose = async (entry: DoseEntry) => {
+    const key = `${entry.medication.id}-${entry.timeOfDay}`
+    setToggling(key)
+    const newTaken = !entry.dose?.taken
+    const body = {
+      medication_id: entry.medication.id,
+      date: today,
+      time_of_day: entry.timeOfDay,
+      taken: newTaken,
+      taken_at: newTaken ? new Date().toISOString() : null,
+    }
+    const res = await fetch('/api/daily-doses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (res.ok) {
+      const updated: DailyDose = await res.json()
+      setDoses((prev) => {
+        const filtered = prev.filter(
+          (d) => !(
+            d.medication_id === updated.medication_id &&
+            d.time_of_day === updated.time_of_day &&
+            d.date === updated.date
+          )
+        )
+        return [...filtered, updated]
+      })
+    }
+    setToggling(null)
+  }
+
+  const entries = getEntries()
+  const allEntries = Object.values(entries).flat()
+  const takenCount = allEntries.filter((e) => e.dose?.taken).length
+  const totalCount = allEntries.length
+
+  const dateLabel = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  })
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    <div className="py-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-white">Today</h1>
+        <p className="text-gray-400 text-sm mt-0.5">{dateLabel}</p>
+        {totalCount > 0 && (
+          <div className="mt-3">
+            <div className="flex justify-between text-xs text-gray-500 mb-1">
+              <span>{takenCount} of {totalCount} taken</span>
+              <span>{Math.round((takenCount / totalCount) * 100)}%</span>
+            </div>
+            <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-indigo-500 rounded-full transition-all duration-500"
+                style={{ width: `${(takenCount / totalCount) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      {totalCount === 0 ? (
+        <div className="text-center py-16 text-gray-500">
+          <p className="text-lg">No medications scheduled</p>
+          <p className="text-sm mt-1">
+            Add some in <span className="text-indigo-400">My Meds</span>
+          </p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      ) : (
+        <div className="space-y-6">
+          {TIME_ORDER.map((time) => {
+            const group = entries[time]
+            if (group.length === 0) return null
+            return (
+              <section key={time}>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-base">{TIME_ICONS[time]}</span>
+                  <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider">
+                    {TIME_LABELS[time]}
+                  </h2>
+                </div>
+                <div className="space-y-2">
+                  {group.map((entry) => {
+                    const taken = entry.dose?.taken ?? false
+                    const key = `${entry.medication.id}-${entry.timeOfDay}`
+                    const isToggling = toggling === key
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => toggleDose(entry)}
+                        disabled={isToggling}
+                        className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-all text-left ${
+                          taken
+                            ? 'bg-gray-900 border-gray-800 opacity-60'
+                            : 'bg-gray-900 border-gray-800 hover:border-gray-700 active:scale-[0.99]'
+                        }`}
+                      >
+                        <div
+                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: entry.medication.color }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-medium text-sm ${taken ? 'line-through text-gray-500' : 'text-white'}`}>
+                            {entry.medication.name}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-0.5">{entry.medication.dose}</p>
+                        </div>
+                        <div
+                          className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                            taken ? 'bg-indigo-500 border-indigo-500' : 'border-gray-600'
+                          }`}
+                        >
+                          {taken && (
+                            <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </section>
+            )
+          })}
+        </div>
+      )}
     </div>
-  );
+  )
 }

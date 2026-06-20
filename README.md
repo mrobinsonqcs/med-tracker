@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Med Tracker
 
-## Getting Started
+A personal medication reminder and peptide dosing calculator built with Next.js 14, Tailwind CSS, Supabase, and Resend.
 
-First, run the development server:
+## Features
+
+- **Today** — daily medication checklist sorted by time of day, resets each day
+- **My Meds** — add/remove medications with name, dose, schedule times, and color tag
+- **Peptide Calculator** — calculate concentration, draw volume, and syringe unit mark from vial/BAC water/target dose
+- **Cycle Log** — track peptide cycles with name, dose, frequency, duration, and start date
+- **Email Reminders** — daily Resend emails sent via Vercel cron at morning/noon/evening/night
+
+## Setup
+
+### 1. Clone and install
+
+```bash
+git clone <your-repo>
+cd med-tracker
+npm install
+```
+
+### 2. Configure environment variables
+
+```bash
+cp .env.local.example .env.local
+```
+
+Fill in `.env.local`:
+
+| Variable | Where to find it |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project → Settings → API |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase project → Settings → API |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase project → Settings → API (secret) |
+| `RESEND_API_KEY` | resend.com → API Keys |
+| `CRON_SECRET` | Generate any random string (e.g. `openssl rand -hex 32`) |
+
+### 3. Set up Supabase database
+
+1. Create a new project at [supabase.com](https://supabase.com)
+2. Go to the SQL editor and run the contents of `lib/supabase-schema.sql`
+
+### 4. Configure Resend sender domain
+
+In `app/api/cron/send-reminders/route.ts`, update the `from` field:
+
+```ts
+from: 'Med Tracker <reminders@yourdomain.com>',
+```
+
+You must verify your sending domain in the Resend dashboard.
+
+### 5. Run locally
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deployment (Vercel)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Push to GitHub and import the repo in Vercel
+2. Add all environment variables from `.env.local` to the Vercel project settings
+3. Add `CRON_SECRET` to Vercel environment variables as well
+4. Deploy — Vercel will automatically pick up the cron jobs from `vercel.json`
 
-## Learn More
+### Cron schedule
 
-To learn more about Next.js, take a look at the following resources:
+The cron jobs in `vercel.json` fire at:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Time | UTC | Reminder for |
+|---|---|---|
+| 7:00 AM UTC | `0 7 * * *` | Morning |
+| 12:00 PM UTC | `0 12 * * *` | Noon |
+| 6:00 PM UTC | `0 18 * * *` | Evening |
+| 9:00 PM UTC | `0 21 * * *` | Night |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Adjust these in `vercel.json` to match your timezone offset.
 
-## Deploy on Vercel
+## Database Schema
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+See `lib/supabase-schema.sql` for the full schema. Tables:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `medications` — name, dose, times[], color, user_email
+- `daily_doses` — medication_id, date, time_of_day, taken, taken_at
+- `cycle_log` — peptide_name, dose, frequency, duration, start_date, notes
+- `user_settings` — email (for reminders)

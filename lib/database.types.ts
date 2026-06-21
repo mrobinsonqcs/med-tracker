@@ -4,11 +4,11 @@ export type Frequency = 'daily' | 'every other day' | 'weekly' | 'twice weekly' 
 
 export interface Medication {
   id: string
+  user_id: string
   name: string
   dose: string
   times: TimeOfDay[]
   color: string
-  user_email: string
   created_at: string
 }
 
@@ -23,6 +23,7 @@ export interface DailyDose {
 
 export interface CycleLog {
   id: string
+  user_id: string
   peptide_name: string
   dose: string
   frequency: Frequency
@@ -34,7 +35,8 @@ export interface CycleLog {
 
 export interface UserSettings {
   id: string
-  email: string
+  user_id: string
+  email: string | null
   created_at: string
 }
 

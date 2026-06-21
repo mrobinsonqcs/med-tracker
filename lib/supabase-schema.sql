@@ -1,18 +1,20 @@
 -- Run this in the Supabase SQL editor to set up your database
+-- Single-user app: all records are tied to HARDCODED_USER_ID = '11111111-1111-1111-1111-111111111111'
 
 create table if not exists user_settings (
   id uuid primary key default gen_random_uuid(),
-  email text not null unique,
+  user_id uuid not null unique,
+  email text,
   created_at timestamptz default now()
 );
 
 create table if not exists medications (
   id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
   name text not null,
   dose text not null,
   times text[] not null default '{}',
   color text not null default '#6366f1',
-  user_email text not null,
   created_at timestamptz default now()
 );
 
@@ -28,6 +30,7 @@ create table if not exists daily_doses (
 
 create table if not exists cycle_log (
   id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
   peptide_name text not null,
   dose text not null,
   frequency text not null,
@@ -37,13 +40,13 @@ create table if not exists cycle_log (
   created_at timestamptz default now()
 );
 
--- Enable Row Level Security (optional but recommended)
+-- Enable Row Level Security
 alter table user_settings enable row level security;
 alter table medications enable row level security;
 alter table daily_doses enable row level security;
 alter table cycle_log enable row level security;
 
--- For a single-user app, allow all operations (adjust for multi-user auth)
+-- Single-user: allow all operations
 create policy "Allow all" on user_settings for all using (true) with check (true);
 create policy "Allow all" on medications for all using (true) with check (true);
 create policy "Allow all" on daily_doses for all using (true) with check (true);

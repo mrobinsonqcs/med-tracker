@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { createServerClient } from '@/lib/supabase'
+import { HARDCODED_USER_ID } from '@/lib/constants'
 import type { Medication, DailyDose, UserSettings } from '@/lib/database.types'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -30,7 +31,7 @@ export async function GET(req: Request) {
   const { data: settingsRaw } = await supabase
     .from('user_settings')
     .select('email')
-    .limit(1)
+    .eq('user_id', HARDCODED_USER_ID)
     .single()
 
   const settings = settingsRaw as Pick<UserSettings, 'email'> | null
@@ -41,7 +42,11 @@ export async function GET(req: Request) {
 
   const today = new Date().toISOString().split('T')[0]
 
-  const { data: medsRaw } = await supabase.from('medications').select('*')
+  const { data: medsRaw } = await supabase
+    .from('medications')
+    .select('*')
+    .eq('user_id', HARDCODED_USER_ID)
+
   const medications = (medsRaw ?? []) as Medication[]
 
   const dueMeds = medications.filter((med) =>

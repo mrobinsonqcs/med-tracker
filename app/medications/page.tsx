@@ -17,7 +17,6 @@ const COLORS = [
   '#3b82f6', '#06b6d4',
 ]
 
-const DEFAULT_EMAIL = ''
 
 function MedCard({ med, onDelete }: { med: Medication; onDelete: (id: string) => void }) {
   const [confirming, setConfirming] = useState(false)
@@ -70,7 +69,7 @@ export default function MedicationsPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [email, setEmail] = useState(DEFAULT_EMAIL)
+  const [email, setEmail] = useState('')
   const [savingEmail, setSavingEmail] = useState(false)
   const [emailSaved, setEmailSaved] = useState(false)
 
@@ -111,7 +110,7 @@ export default function MedicationsPage() {
     const res = await fetch('/api/medications', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, user_email: email || 'user@example.com' }),
+      body: JSON.stringify(form),
     })
     if (res.ok) {
       const med: Medication = await res.json()

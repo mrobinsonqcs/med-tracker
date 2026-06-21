@@ -1,16 +1,28 @@
+import { createServerClient as createSSRClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
+import { cookies } from 'next/headers'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-console.log('[supabase] NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl ?? '(not set)')
-
-export const supabase = createClient(supabaseUrl!, supabaseAnonKey!)
-
+// Cookie-aware client for API routes — runs as the authenticated user, RLS applies
 export function createServerClient() {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!supabaseUrl || !serviceRoleKey) {
-    console.error('[supabase] Missing env vars — URL:', supabaseUrl ?? '(not set)', '| SERVICE_ROLE_KEY:', serviceRoleKey ? '(set)' : '(not set)')
-  }
-  return createClient(supabaseUrl!, serviceRoleKey!)
+  const cookieStore = cookies()
+  return createSSRClient(url, anonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll()
+      },
+      setAll(toSet) {
+        try {
+          toSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+        } catch {}
+      },
+    },
+  })
+}
+
+// Service-role client for cron jobs — bypasses RLS, no user session needed
+export function createAdminClient() {
+  return createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Medication, DailyDose, TimeOfDay } from '@/lib/database.types'
+import { Medication, DailyDose, TimeOfDay, Schedule } from '@/lib/database.types'
 
 const TIME_ORDER: TimeOfDay[] = ['morning', 'noon', 'evening', 'night']
 const TIME_LABELS: Record<TimeOfDay, string> = {
@@ -24,11 +24,30 @@ type DoseEntry = {
 }
 
 function todayStr() {
-  return new Date().toISOString().split('T')[0]
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function isDoseDay(schedule: Schedule, today: string): boolean {
+  const [sy, sm, sd] = schedule.start_date.split('-').map(Number)
+  const [ty, tm, td] = today.split('-').map(Number)
+  const startMs = new Date(sy, sm - 1, sd).getTime()
+  const todayMs = new Date(ty, tm - 1, td).getTime()
+  const daysDiff = Math.round((todayMs - startMs) / 86400000)
+  if (daysDiff < 0) return false
+  switch (schedule.frequency) {
+    case 'every day': return true
+    case 'every other day': return daysDiff % 2 === 0
+    case 'every 3 days': return daysDiff % 3 === 0
+    case 'weekly': return daysDiff % 7 === 0
+    case 'biweekly': return daysDiff % 14 === 0
+    default: return true
+  }
 }
 
 export default function TodayPage() {
   const [medications, setMedications] = useState<Medication[]>([])
+  const [schedules, setSchedules] = useState<Schedule[]>([])
   const [doses, setDoses] = useState<DailyDose[]>([])
   const [loading, setLoading] = useState(true)
   const [toggling, setToggling] = useState<string | null>(null)
@@ -36,12 +55,18 @@ export default function TodayPage() {
   const today = todayStr()
 
   const fetchData = useCallback(async () => {
-    const [medsRes, dosesRes] = await Promise.all([
+    const [medsRes, schedulesRes, dosesRes] = await Promise.all([
       fetch('/api/medications'),
+      fetch('/api/schedule'),
       fetch(`/api/daily-doses?date=${today}`),
     ])
-    const [meds, dosesData] = await Promise.all([medsRes.json(), dosesRes.json()])
+    const [meds, schedulesData, dosesData] = await Promise.all([
+      medsRes.json(),
+      schedulesRes.json(),
+      dosesRes.json(),
+    ])
     setMedications(Array.isArray(meds) ? meds : [])
+    setSchedules(Array.isArray(schedulesData) ? schedulesData : [])
     setDoses(Array.isArray(dosesData) ? dosesData : [])
     setLoading(false)
   }, [today])
@@ -51,13 +76,22 @@ export default function TodayPage() {
   }, [fetchData])
 
   const getEntries = (): Record<TimeOfDay, DoseEntry[]> => {
+    const activeMedNames = new Set(
+      schedules
+        .filter((s) =>
+          s.start_date <= today &&
+          (s.stop_date == null || s.stop_date >= today) &&
+          isDoseDay(s, today)
+        )
+        .map((s) => s.medication_name)
+    )
     const result: Record<TimeOfDay, DoseEntry[]> = {
       morning: [],
       noon: [],
       evening: [],
       night: [],
     }
-    for (const med of medications) {
+    for (const med of medications.filter((m) => activeMedNames.has(m.name))) {
       for (const time of med.times as TimeOfDay[]) {
         const dose = doses.find(
           (d) => d.medication_id === med.id && d.time_of_day === time
@@ -185,6 +219,9 @@ export default function TodayPage() {
                             {entry.medication.name}
                           </p>
                           <p className="text-xs text-gray-500 mt-0.5">{entry.medication.dose}</p>
+                          {entry.medication.instructions && (
+                            <p className="text-xs text-indigo-400 mt-0.5">{entry.medication.instructions}</p>
+                          )}
                         </div>
                         <div
                           className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${

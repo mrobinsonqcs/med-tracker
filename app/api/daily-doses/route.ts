@@ -6,13 +6,17 @@ export async function GET(req: Request) {
     const supabase = createServerClient()
     const { searchParams } = new URL(req.url)
     const date = searchParams.get('date')
+    const from = searchParams.get('from')
+    const to = searchParams.get('to')
 
-    if (!date) return NextResponse.json({ error: 'date required' }, { status: 400 })
+    if (!date && (!from || !to)) {
+      return NextResponse.json({ error: 'date or from+to required' }, { status: 400 })
+    }
 
-    const { data, error } = await supabase
-      .from('daily_doses')
-      .select('*')
-      .eq('date', date)
+    const query = supabase.from('daily_doses').select('*')
+    const { data, error } = date
+      ? await query.eq('date', date)
+      : await query.gte('date', from!).lte('date', to!)
 
     if (error) {
       console.error('[GET /api/daily-doses] Supabase error:', error.code, error.message, error.details)

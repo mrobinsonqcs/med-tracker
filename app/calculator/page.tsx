@@ -2,12 +2,13 @@
 
 import { useState } from 'react'
 
-type SyringeType = '29g 0.5ml' | '30g 1ml' | '31g 0.3ml'
+type SyringeVolume = '0.3ml' | '0.5ml' | '1ml'
+type DoseUnit = 'mcg' | 'mg'
 
-const SYRINGE_UNITS: Record<SyringeType, number> = {
-  '29g 0.5ml': 50,
-  '30g 1ml': 100,
-  '31g 0.3ml': 30,
+const SYRINGE_DATA: Record<SyringeVolume, { units: number; ml: number }> = {
+  '0.3ml': { units: 30, ml: 0.3 },
+  '0.5ml': { units: 50, ml: 0.5 },
+  '1ml': { units: 100, ml: 1.0 },
 }
 
 type Result = {
@@ -20,14 +21,14 @@ function calculate(
   vialMg: number,
   bacWaterMl: number,
   targetDoseMcg: number,
-  syringe: SyringeType
+  syringe: SyringeVolume
 ): Result | null {
   if (!vialMg || !bacWaterMl || !targetDoseMcg) return null
   const vialMcg = vialMg * 1000
   const concentrationMcgPerMl = vialMcg / bacWaterMl
   const mlToDraw = targetDoseMcg / concentrationMcgPerMl
-  const totalUnits = SYRINGE_UNITS[syringe]
-  const mlPerUnit = (syringe === '30g 1ml' ? 1 : syringe === '29g 0.5ml' ? 0.5 : 0.3) / totalUnits
+  const { units, ml } = SYRINGE_DATA[syringe]
+  const mlPerUnit = ml / units
   const unitMark = mlToDraw / mlPerUnit
 
   return {
@@ -40,13 +41,18 @@ function calculate(
 export default function CalculatorPage() {
   const [vialMg, setVialMg] = useState('')
   const [bacWaterMl, setBacWaterMl] = useState('')
-  const [targetDoseMcg, setTargetDoseMcg] = useState('')
-  const [syringe, setSyringe] = useState<SyringeType>('29g 0.5ml')
+  const [targetDose, setTargetDose] = useState('')
+  const [doseUnit, setDoseUnit] = useState<DoseUnit>('mcg')
+  const [syringe, setSyringe] = useState<SyringeVolume>('0.5ml')
+
+  const targetDoseMcg = doseUnit === 'mg'
+    ? parseFloat(targetDose) * 1000
+    : parseFloat(targetDose)
 
   const result = calculate(
     parseFloat(vialMg),
     parseFloat(bacWaterMl),
-    parseFloat(targetDoseMcg),
+    targetDoseMcg,
     syringe
   )
 
@@ -83,26 +89,48 @@ export default function CalculatorPage() {
         </div>
 
         <div>
-          <label className="block text-xs text-gray-500 mb-1.5">Target dose (mcg)</label>
-          <input
-            type="number"
-            inputMode="decimal"
-            value={targetDoseMcg}
-            onChange={(e) => setTargetDoseMcg(e.target.value)}
-            placeholder="e.g. 200"
-            className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition-colors"
-          />
+          <label className="block text-xs text-gray-500 mb-1.5">Target dose</label>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              inputMode="decimal"
+              value={targetDose}
+              onChange={(e) => setTargetDose(e.target.value)}
+              placeholder={doseUnit === 'mcg' ? 'e.g. 200' : 'e.g. 0.2'}
+              className="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition-colors"
+            />
+            <div className="flex bg-gray-900 border border-gray-700 rounded-xl overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setDoseUnit('mcg')}
+                className={`px-4 py-3 text-sm font-medium transition-colors ${
+                  doseUnit === 'mcg' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-gray-300'
+                }`}
+              >
+                mcg
+              </button>
+              <button
+                type="button"
+                onClick={() => setDoseUnit('mg')}
+                className={`px-4 py-3 text-sm font-medium transition-colors ${
+                  doseUnit === 'mg' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-gray-300'
+                }`}
+              >
+                mg
+              </button>
+            </div>
+          </div>
         </div>
 
         <div>
-          <label className="block text-xs text-gray-500 mb-1.5">Syringe type</label>
+          <label className="block text-xs text-gray-500 mb-1.5">Syringe volume</label>
           <div className="grid grid-cols-3 gap-2">
-            {(Object.keys(SYRINGE_UNITS) as SyringeType[]).map((s) => (
+            {(Object.keys(SYRINGE_DATA) as SyringeVolume[]).map((s) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => setSyringe(s)}
-                className={`py-2.5 px-2 rounded-xl text-xs font-medium transition-all border ${
+                className={`py-2.5 px-2 rounded-xl text-sm font-medium transition-all border ${
                   syringe === s
                     ? 'bg-indigo-600 border-indigo-500 text-white'
                     : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-600'

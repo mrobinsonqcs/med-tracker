@@ -8,7 +8,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const body = await req.json()
   const { data, error } = await supabase
-    .from('medications')
+    .from('cycle_log')
     .update(body)
     .eq('id', params.id)
     .eq('user_id', user.id)
@@ -25,7 +25,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { error } = await supabase
-    .from('medications')
+    .from('cycle_log')
     .delete()
     .eq('id', params.id)
     .eq('user_id', user.id)

@@ -1,6 +1,11 @@
 export type TimeOfDay = 'morning' | 'noon' | 'evening' | 'night'
 
-export type Frequency = 'daily' | 'every other day' | 'weekly' | 'twice weekly' | 'custom'
+export type Frequency =
+  | 'every day'
+  | 'every other day'
+  | 'every 3 days'
+  | 'weekly'
+  | 'biweekly'
 
 export interface Medication {
   id: string
@@ -9,6 +14,7 @@ export interface Medication {
   dose: string
   times: TimeOfDay[]
   color: string
+  instructions: string | null
   created_at: string
 }
 
@@ -21,14 +27,14 @@ export interface DailyDose {
   taken_at: string | null
 }
 
-export interface CycleLog {
+export interface Schedule {
   id: string
   user_id: string
-  peptide_name: string
+  medication_name: string
   dose: string
   frequency: Frequency
-  duration: string
   start_date: string
+  stop_date: string | null
   notes: string | null
   created_at: string
 }
@@ -36,7 +42,7 @@ export interface CycleLog {
 export interface UserSettings {
   id: string
   user_id: string
-  email: string | null
+  timezone: string
   created_at: string
 }
 
@@ -54,9 +60,9 @@ export type Database = {
         Update: Partial<Omit<DailyDose, 'id'>>
       }
       cycle_log: {
-        Row: CycleLog
-        Insert: Omit<CycleLog, 'id' | 'created_at'>
-        Update: Partial<Omit<CycleLog, 'id' | 'created_at'>>
+        Row: Schedule
+        Insert: Omit<Schedule, 'id' | 'created_at'>
+        Update: Partial<Omit<Schedule, 'id' | 'created_at'>>
       }
       user_settings: {
         Row: UserSettings

@@ -1,14 +1,22 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
-import { HARDCODED_USER_ID } from '@/lib/constants'
+
+async function getUser(supabase: ReturnType<typeof createServerClient>) {
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error || !user) return null
+  return user
+}
 
 export async function GET() {
   try {
     const supabase = createServerClient()
+    const user = await getUser(supabase)
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const { data, error } = await supabase
       .from('medications')
       .select('*')
-      .eq('user_id', HARDCODED_USER_ID)
+      .eq('user_id', user.id)
       .order('created_at', { ascending: true })
 
     if (error) {
@@ -25,10 +33,13 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const supabase = createServerClient()
+    const user = await getUser(supabase)
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const body = await req.json()
     const { data, error } = await supabase
       .from('medications')
-      .insert({ ...body, user_id: HARDCODED_USER_ID })
+      .insert({ ...body, user_id: user.id })
       .select()
       .single()
 

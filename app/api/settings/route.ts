@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
-import { HARDCODED_USER_ID } from '@/lib/constants'
 import type { UserSettings } from '@/lib/database.types'
 
 export async function GET() {
   const supabase = createServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { data, error } = await supabase
     .from('user_settings')
     .select('*')
-    .eq('user_id', HARDCODED_USER_ID)
+    .eq('user_id', user.id)
     .single()
 
   if (error && error.code !== 'PGRST116') {
@@ -19,11 +21,14 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const supabase = createServerClient()
-  const { email } = await req.json() as { email: string }
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { timezone } = await req.json() as { timezone: string }
 
   const { data, error } = await supabase
     .from('user_settings')
-    .upsert({ user_id: HARDCODED_USER_ID, email }, { onConflict: 'user_id' })
+    .upsert({ user_id: user.id, timezone }, { onConflict: 'user_id' })
     .select()
     .single()
 

@@ -2,31 +2,47 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 
 export async function GET(req: Request) {
-  const supabase = createServerClient()
-  const { searchParams } = new URL(req.url)
-  const date = searchParams.get('date')
+  try {
+    const supabase = createServerClient()
+    const { searchParams } = new URL(req.url)
+    const date = searchParams.get('date')
 
-  if (!date) return NextResponse.json({ error: 'date required' }, { status: 400 })
+    if (!date) return NextResponse.json({ error: 'date required' }, { status: 400 })
 
-  const { data, error } = await supabase
-    .from('daily_doses')
-    .select('*')
-    .eq('date', date)
+    const { data, error } = await supabase
+      .from('daily_doses')
+      .select('*')
+      .eq('date', date)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+    if (error) {
+      console.error('[GET /api/daily-doses] Supabase error:', error.code, error.message, error.details)
+      return NextResponse.json({ error: error.message, code: error.code, details: error.details }, { status: 500 })
+    }
+    return NextResponse.json(data)
+  } catch (err) {
+    console.error('[GET /api/daily-doses] Unexpected error:', err)
+    return NextResponse.json({ error: String(err) }, { status: 500 })
+  }
 }
 
 export async function POST(req: Request) {
-  const supabase = createServerClient()
-  const body = await req.json()
+  try {
+    const supabase = createServerClient()
+    const body = await req.json()
 
-  const { data, error } = await supabase
-    .from('daily_doses')
-    .upsert(body, { onConflict: 'medication_id,date,time_of_day' })
-    .select()
-    .single()
+    const { data, error } = await supabase
+      .from('daily_doses')
+      .upsert(body, { onConflict: 'medication_id,date,time_of_day' })
+      .select()
+      .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+    if (error) {
+      console.error('[POST /api/daily-doses] Supabase error:', error.code, error.message, error.details)
+      return NextResponse.json({ error: error.message, code: error.code, details: error.details }, { status: 500 })
+    }
+    return NextResponse.json(data)
+  } catch (err) {
+    console.error('[POST /api/daily-doses] Unexpected error:', err)
+    return NextResponse.json({ error: String(err) }, { status: 500 })
+  }
 }

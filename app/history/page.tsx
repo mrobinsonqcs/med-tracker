@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Medication, DailyDose, TimeOfDay, Schedule } from '@/lib/database.types'
 
 const TIME_ORDER: TimeOfDay[] = ['morning', 'noon', 'evening', 'night']
@@ -23,31 +23,52 @@ type DoseEntry = {
   dose: DailyDose | null
 }
 
+function localDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function getLast30Days(): string[] {
   const days: string[] = []
   const base = new Date()
   for (let i = 0; i < 30; i++) {
     const d = new Date(base)
     d.setDate(d.getDate() - i)
-    days.push(d.toISOString().split('T')[0])
+    days.push(localDateStr(d))
   }
   return days
 }
 
 function todayStr(): string {
-  return new Date().toISOString().split('T')[0]
+  return localDateStr(new Date())
 }
 
 function yesterdayStr(): string {
   const d = new Date()
   d.setDate(d.getDate() - 1)
-  return d.toISOString().split('T')[0]
+  return localDateStr(d)
 }
 
 function fromStr(): string {
   const d = new Date()
   d.setDate(d.getDate() - 29)
-  return d.toISOString().split('T')[0]
+  return localDateStr(d)
+}
+
+function isDoseDay(schedule: Schedule, date: string): boolean {
+  const [sy, sm, sd] = schedule.start_date.split('-').map(Number)
+  const [ty, tm, td] = date.split('-').map(Number)
+  const startMs = new Date(sy, sm - 1, sd).getTime()
+  const dateMs = new Date(ty, tm - 1, td).getTime()
+  const daysDiff = Math.round((dateMs - startMs) / 86400000)
+  if (daysDiff < 0) return false
+  switch (schedule.frequency) {
+    case 'every day': return true
+    case 'every other day': return daysDiff % 2 === 0
+    case 'every 3 days': return daysDiff % 3 === 0
+    case 'weekly': return daysDiff % 7 === 0
+    case 'biweekly': return daysDiff % 14 === 0
+    default: return true
+  }
 }
 
 function formatDayLabel(dateStr: string): string {
@@ -75,7 +96,12 @@ function formatTakenAt(takenAt: string | null): string {
 function getActiveMeds(date: string, medications: Medication[], schedules: Schedule[]): Medication[] {
   const activeNames = new Set(
     schedules
-      .filter((s) => s.start_date <= date && (s.stop_date == null || s.stop_date >= date))
+      .filter(
+        (s) =>
+          s.start_date <= date &&
+          (s.stop_date == null || s.stop_date >= date) &&
+          isDoseDay(s, date)
+      )
       .map((s) => s.medication_name)
   )
   return medications.filter((m) => activeNames.has(m.name))
@@ -114,30 +140,32 @@ export default function HistoryPage() {
     fetchData()
   }, [fetchData])
 
-  const getDayEntries = useCallback(
-    (date: string): DoseEntry[] => {
+  const entriesByDate = useMemo(() => {
+    const result: Record<string, DoseEntry[]> = {}
+    for (const date of getLast30Days()) {
       const activeMeds = getActiveMeds(date, medications, schedules)
-      const entries: DoseEntry[] = []
+      const dayEntries: DoseEntry[] = []
       for (const med of activeMeds) {
-        for (const time of med.times as TimeOfDay[]) {
+        const times = Array.isArray(med.times) ? (med.times as TimeOfDay[]) : []
+        for (const time of times) {
           const dose =
             doses.find(
               (d) => d.medication_id === med.id && d.time_of_day === time && d.date === date
             ) ?? null
-          entries.push({ med, time, dose })
+          dayEntries.push({ med, time, dose })
         }
       }
-      return entries
-    },
-    [medications, schedules, doses]
-  )
+      result[date] = dayEntries
+    }
+    return result
+  }, [medications, schedules, doses])
 
   const getFilteredEntries = useCallback(
     (date: string): DoseEntry[] => {
-      const entries = getDayEntries(date)
+      const entries = entriesByDate[date] ?? []
       return selectedMed ? entries.filter((e) => e.med.name === selectedMed) : entries
     },
-    [getDayEntries, selectedMed]
+    [entriesByDate, selectedMed]
   )
 
   const toggleDose = async (med: Medication, time: TimeOfDay, date: string, current: DailyDose | null) => {

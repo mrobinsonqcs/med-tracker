@@ -1,0 +1,11 @@
+{
+  "remoteName": "origin",
+  "projects": [
+    {
+      "id": "prj_kqMLXq3bKiixKJNeGMh2q0BZr4qq",
+      "name": "med-tracker",
+      "directory": ".",
+      "orgId": "team_iB7m1BApdMLpaGakzqWNlDFp"
+    }
+  ]
+}
